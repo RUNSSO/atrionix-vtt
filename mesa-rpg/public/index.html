@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Atrionix — Painel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#06060a; --panel: rgba(14,18,26,0.92); --accent: #00bfff; --muted: #9fbfdc; --glass: rgba(255,255,255,0.04);
+    }
+    html,body{height:100%;width:100%;margin:0;padding:0;background:linear-gradient(180deg,#04040a 0%, #070717 100%);color:var(--muted);font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif;overflow:hidden}
+    #app { position:relative; height:100vh; width:100vw; }
+    #mapCanvas { position:absolute; left:0; top:0; width:100%; height:100%; background: #0a0a0f center/cover no-repeat; z-index:1; cursor:default; }
+    #fogCanvas { position:absolute; left:0; top:0; width:100%; height:100%; z-index:5; pointer-events:auto; }
+    .sidebar { position:fixed; right:0; top:0; bottom:0; width:360px; background:var(--panel); box-shadow:-10px 0 30px rgba(0,0,0,0.6); border-left:1px solid rgba(0,191,255,0.06); padding:16px; z-index:120; display:flex; flex-direction:column; gap:12px; box-sizing:border-box; overflow:auto; scroll-behavior:smooth; }
+    .section { background:var(--glass); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.02); }
+    label{font-size:13px;color:#bfeaff;display:block;margin-bottom:6px;}
+    select, input[type="text"], input[type="file"], textarea, input[type="number"], input[type="range"] { width:100%; box-sizing:border-box; padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:rgba(0,0,0,0.2); color:var(--muted); }
+    button { background:transparent; border:1px solid rgba(0,191,255,0.12); color:var(--accent); padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
+    button.ghost { background:transparent; border:1px dashed rgba(255,255,255,0.03); color:var(--muted); }
+    .row { display:flex; gap:8px; align-items:center; }
+    .small { font-size:13px; padding:6px 8px; }
+    .muted { color:#89b7d6; font-size:13px; }
+    .popup { position:absolute; z-index:200; display:none; min-width:300px; background: linear-gradient(180deg, rgba(8,10,16,0.98), rgba(6,8,12,0.98)); border:1px solid rgba(0,191,255,0.07); padding:10px; border-radius:10px; color:var(--muted); box-shadow:0 6px 30px rgba(0,0,0,0.6); }
+    #loginModal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); z-index:9999; }
+    #loginBox { width:360px; background:linear-gradient(180deg,#070814,#05050a); border-radius:12px; padding:18px; border:1px solid rgba(0,191,255,0.06); color:var(--muted); box-shadow:0 10px 40px rgba(0,0,0,0.7); }
+    @media (max-width:900px){ .sidebar { width:320px; } }
+    #chat-messages { max-height:160px; overflow:auto; background:rgba(0,0,0,0.04); padding:8px; border-radius:6px; }
+    #music-list { max-height:120px; overflow:auto; padding-left:12px; margin:6px 0; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="topbar" style="position:fixed;left:12px;top:12px;z-index:130;display:flex;gap:8px;align-items:center;">
+      <div class="brand" style="color:var(--accent);font-weight:700;padding:6px 10px;background:rgba(0,0,0,0.12);border-radius:8px;border:1px solid rgba(0,191,255,0.06);">Atrionix</div>
+      <div class="muted" id="topRole">Conectando...</div>
+    </div>
+
+    <canvas id="mapCanvas"></canvas>
+    <canvas id="fogCanvas"></canvas>
+
+    <aside class="sidebar" id="sidebar">
+      <h2>Controle</h2>
+
+      <div class="section" id="mapSection">
+        <label for="mapSelect">Mapa</label>
+        <select id="mapSelect"></select>
+        <div class="row" style="margin-top:8px;">
+          <button id="loadMapBtn" class="small">Carregar</button>
+          <button id="uploadMapBtn" class="small ghost">Enviar novo</button>
+          <input type="file" id="mapUploadInput" accept="image/*" style="display:none" />
+        </div>
+        <div style="margin-top:8px">
+          <label>Zoom: <span id="zoomLabel">100%</span></label>
+        </div>
+
+        <div id="fogControls" style="margin-top:12px;">
+          <label>Névoa (Fog of War)</label>
+          <div class="row">
+            <button id="paintFogBtn" class="small">🖌️ Pintar</button>
+            <button id="eraseFogBtn" class="small ghost">☀️ Revelar</button>
+            <button id="clearFogBtn" class="small ghost">🧹 Limpar Tudo</button>
+          </div>
+          <div class="row" style="margin-top:8px;align-items:center;">
+            <label style="margin:0;">Tamanho</label>
+            <input id="fogBrushSize" type="number" min="2" max="200" value="40" />
+            <div style="flex:1"></div>
+            <label style="margin:0 6px 0 0">Ver como Jogador</label>
+            <input type="checkbox" id="viewAsPlayerChk" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;align-items:center;">
+          <label style="margin:0">Iluminação</label>
+          <input type="checkbox" id="lightsEnabledChk" title="Ativa/Desativa iluminação dinâmica para a mesa" />
+          <div style="flex:1"></div>
+        </div>
+      </div>
+
+      <div class="section" id="tokenSection">
+        <label>Tokens</label>
+        <select id="tokenSelect"></select>
+        <div class="row" style="margin-top:8px;">
+          <button id="addTokenBtn" class="small">Adicionar (imagem)</button>
+          <button id="addTokenColorBtn" class="small ghost">Adicionar (cor)</button>
+          <input type="file" id="tokenFileInput" accept="image/*" style="display:none" />
+        </div>
+      </div>
+
+      <div class="section" id="musicSection">
+        <label>Música</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="musicUploadBtn" class="small">Enviar</button>
+          <input type="file" id="musicUploadInput" accept="audio/*" style="display:none" />
+          <button id="musicRefreshBtn" class="small ghost">Atualizar</button>
+        </div>
+        <ul id="music-list"></ul>
+        <div class="row" style="margin-top:8px;align-items:center;">
+          <button id="musicPrev" class="small">⏮</button>
+          <button id="musicPlay" class="small">▶</button>
+          <button id="musicPause" class="small">⏸</button>
+          <button id="musicStop" class="small">■</button>
+          <button id="musicNext" class="small">⏭</button>
+        </div>
+        <div class="row" style="margin-top:8px;align-items:center;">
+          <label style="margin:0 6px 0 0">Loop</label>
+          <input type="checkbox" id="musicLoop" />
+          <label style="margin-left:8px">Volume</label>
+          <input id="musicVolume" type="range" min="0" max="1" step="0.01" value="0.9" />
+        </div>
+        <div id="musicNow" style="margin-top:8px;font-size:13px;color:#bfeaff">(Nenhuma faixa)</div>
+      </div>
+
+      <div class="section" id="chatSection">
+        <label>Chat</label>
+        <div id="chat-messages"></div>
+        <div id="chat-input-row" style="margin-top:8px;">
+          <input id="chat-input" placeholder="Digite /roll d20 ou sua mensagem..." />
+          <button id="chat-send" class="small">Enviar</button>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="muted" style="margin-bottom:6px">Rolagens rápidas</div>
+          <div class="dice-buttons">
+            <button class="small dice" data-d="4">d4</button>
+            <button class="small dice" data-d="6">d6</button>
+            <button class="small dice" data-d="8">d8</button>
+            <button class="small dice" data-d="10">d10</button>
+            <button class="small dice" data-d="12">d12</button>
+            <button class="small dice" data-d="20">d20</button>
+            <button class="small dice" data-d="100">d100</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="notesSection">
+        <label>Minhas Anotações</label>
+        <textarea id="notesArea" rows="4" placeholder="Notas visíveis apenas para você (e o mestre)"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button id="saveNotesBtn" class="small">Salvar</button>
+          <div style="flex:1"></div>
+          <div class="muted small" id="notesSavedIndicator">—</div>
+        </div>
+      </div>
+
+      <div class="section" id="playersSection">
+        <label>Jogadores</label>
+        <ul id="playerList" style="max-height:100px;overflow:auto;padding:6px;margin:0;background:rgba(0,0,0,0.06);border-radius:6px;"></ul>
+      </div>
+
+      <div id="masterNotesWrapper"></div>
+    </aside>
+
+    <div id="tokenPopup" class="popup" role="dialog" aria-hidden="true">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong id="popup-token-name">Token</strong>
+        <button id="popup-close" class="small ghost">X</button>
+      </div>
+
+      <label>Dono</label>
+      <select id="popup-owner-select"></select>
+
+      <label style="margin-top:8px">Variação</label>
+      <select id="popup-variation-select"></select>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button id="popup-add-variation" class="small">+ Variação</button>
+        <input type="file" id="popup-variation-file" accept="image/*" style="display:none" />
+      </div>
+
+      <label style="margin-top:8px">Iluminação (raio em unidades do mapa)</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+        <input id="popup-light-range" type="range" min="0" max="1200" step="10" value="0" />
+        <input id="popup-light-number" type="number" min="0" max="1200" step="10" value="0" style="width:80px;" />
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="popup-set-light" class="small">Aplicar luz</button>
+        <button id="popup-assign" class="small">Atribuir</button>
+        <button id="popup-remove-assign" class="small ghost">Remover</button>
+        <button id="popup-delete" class="small ghost">Excluir</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="loginModal">
+    <div id="loginBox">
+      <h3 style="color:var(--accent);margin:0 0 8px 0;">Entrar no Atrionix</h3>
+      <input id="loginName" placeholder="Seu nome" />
+      <div style="margin-bottom:8px;">
+        <label style="font-size:13px;color:#9fd8ff">Entrar como:</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button id="loginMaster" class="small">Mestre</button>
+          <button id="loginPlayer" class="small ghost">Jogador</button>
+        </div>
+      </div>
+      <div class="btnRow" style="justify-content:flex-end;">
+        <button id="loginProceed" class="small">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

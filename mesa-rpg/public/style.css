@@ -1,0 +1,19 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #222;
+    color: #eee;
+    margin: 20px;
+}
+
+#map-container {
+    border: 2px solid #555;
+    margin-bottom: 10px;
+}
+
+#controls, #chat {
+    margin-bottom: 10px;
+}
+
+button {
+    margin-left: 5px;
+}
